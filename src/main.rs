@@ -62,21 +62,21 @@ struct UpdateResponse {
     response: String,
 }
 
-#[openapi]
+#[openapi(tag = "Home")]
 #[get("/")]
 fn index() -> &'static str {
     "Welcome to Dusty Shelf"
 }
 
-#[openapi]
+#[openapi(tag = "Config")]
 #[get("/config")]
 fn get_config(config: &State<Config>) -> String {
     format!("Hello {}, welcome to the club {}!", config.name, config.age)
 }
 
-#[openapi]
-#[get("/random")]
-fn random_book() -> Json<Book> {
+#[openapi(tag = "Books")]
+#[get("/book/random")]
+fn get_random_book() -> Json<Book> {
     Json(Book {
         id: 1,
         title: String::from("Your Personal Diary"),
@@ -86,8 +86,8 @@ fn random_book() -> Json<Book> {
     })
 }
 
-#[openapi]
-#[get("/<id>")]
+#[openapi(tag = "Books")]
+#[get("/book/<id>")]
 async fn get_by_id(connection: Db, id: i32) -> Json<Book> {
     connection
         .run(move |c| books::table.filter(books::id.eq(&id)).first(c))
@@ -96,8 +96,8 @@ async fn get_by_id(connection: Db, id: i32) -> Json<Book> {
         .expect(format!("Cannot find book with id : {}", id).as_str())
 }
 
-#[openapi]
-#[get("/all")]
+#[openapi(tag = "Books")]
+#[get("/book/all")]
 async fn get_all_books(connection: Db) -> Json<Vec<Book>> {
     connection
         .run(|c| books::table.load(c))
@@ -106,8 +106,8 @@ async fn get_all_books(connection: Db) -> Json<Vec<Book>> {
         .expect("Failed to fetch all books for you! :(")
 }
 
-#[openapi]
-#[post("/", data = "<book>")]
+#[openapi(tag = "Add Book")]
+#[post("/add_book", data = "<book>")]
 async fn add_book(connection: Db, book: Json<Book>) -> Json<Book> {
     connection
         .run(move |c| {
@@ -120,8 +120,8 @@ async fn add_book(connection: Db, book: Json<Book>) -> Json<Book> {
         .expect("Failed to put the book into Dusty Shelf")
 }
 
-#[openapi]
-#[delete("/<id>")]
+#[openapi(tag = "Delete Book")]
+#[delete("/delete_book/<id>")]
 async fn delete_book(connection: Db, id: i32) -> Result<Option<()>> {
     let res = connection
         .run(move |c| {
@@ -134,8 +134,8 @@ async fn delete_book(connection: Db, id: i32) -> Result<Option<()>> {
     Ok((res == 1).then(|| ()))
 }
 
-#[openapi]
-#[put("/book/<id>", data = "<book>")]
+#[openapi(tag = "Update Book")]
+#[put("/update_book/<id>", data = "<book>")]
 async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<UpdateResponse> {
     match connection
         .run(move |c| {
@@ -160,13 +160,9 @@ async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<UpdateRe
 // Swagger
 fn get_swagger_config() -> SwaggerUIConfig {
     SwaggerUIConfig {
-        urls: vec![
-            UrlObject::new("Home", "/openapi.json"),
-            UrlObject::new("Book", "/book/openapi.json"),
-            UrlObject::new("Add Book", "/add_book/openapi.json"),
-            UrlObject::new("Update Book", "/update/openapi.json"),
-            UrlObject::new("Delete Book", "/delete/openapi.json"),
-        ],
+        urls: vec![UrlObject::new("Dusty Shelf", "/openapi.json")],
+        deep_linking: true,
+        display_request_duration: true,
         ..Default::default()
     }
 }
@@ -176,13 +172,18 @@ fn rocket() -> _ {
     rocket::build()
         .attach(Db::fairing())
         .attach(AdHoc::config::<Config>())
-        .mount("/", openapi_get_routes![index, get_config])
         .mount("/swagger", make_swagger_ui(&get_swagger_config()))
         .mount(
-            "/book",
-            openapi_get_routes![random_book, get_by_id, get_all_books],
+            "/",
+            openapi_get_routes![
+                index,
+                get_config,
+                get_random_book,
+                get_by_id,
+                get_all_books,
+                add_book,
+                delete_book,
+                update_book
+            ],
         )
-        .mount("/add_book", openapi_get_routes![add_book])
-        .mount("/delete", openapi_get_routes![delete_book])
-        .mount("/update", openapi_get_routes![update_book])
 }
