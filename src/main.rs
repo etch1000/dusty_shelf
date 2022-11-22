@@ -162,6 +162,7 @@ fn get_swagger_config() -> SwaggerUIConfig {
     SwaggerUIConfig {
         urls: vec![
             UrlObject::new("Home", "/openapi.json"),
+            UrlObject::new("Book", "/book/openapi.json"),
             UrlObject::new("Add Book", "/add_book/openapi.json"),
             UrlObject::new("Update Book", "/update/openapi.json"),
             UrlObject::new("Delete Book", "/delete/openapi.json"),
