@@ -1,0 +1,8 @@
+# ./Rocket.toml
+
+[default]
+name = "etch1000"
+age = 24
+
+[default.databases.rootkill]
+url = "postgresql://rootkill:example@localhost:5432/rootkill"
