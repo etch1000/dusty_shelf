@@ -1,32 +1,35 @@
+pub mod schema;
+pub mod models;
+
 #[macro_use]
 extern crate rocket;
 
 #[macro_use]
 extern crate diesel;
 
-use diesel::{prelude::*, table, Insertable, Queryable};
+use diesel::prelude::*;
 use rocket::{fairing::AdHoc, response::Debug, serde::json::Json, State};
 use rocket_okapi::{
     openapi, openapi_get_routes,
     request::{OpenApiFromRequest, RequestHeaderInput},
     settings::UrlObject,
     swagger_ui::{make_swagger_ui, SwaggerUIConfig},
-    JsonSchema,
 };
 use rocket_sync_db_pools::{database, diesel::PgConnection};
-use serde::{Deserialize, Serialize};
+use models::*;
+use schema::books;
 
 type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;
 
-table! {
-    books (id) {
-        id -> Int4,
-        title -> Varchar,
-        author -> Varchar,
-        description -> Text,
-        published -> Bool,
-    }
-}
+// table! {
+//     books (id) {
+//         id -> Int4,
+//         title -> Varchar,
+//         author -> Varchar,
+//         description -> Text,
+//         published -> Bool,
+//     }
+// }
 
 #[database("rootkill")]
 pub struct Db(PgConnection);
@@ -41,26 +44,6 @@ impl<'r> OpenApiFromRequest<'r> for Db {
     }
 }
 
-#[derive(Deserialize)]
-struct Config {
-    name: String,
-    age: u8,
-}
-
-#[derive(Deserialize, Serialize, Queryable, Debug, Insertable, JsonSchema)]
-#[table_name = "books"]
-struct Book {
-    id: i32,
-    title: String,
-    author: String,
-    description: String,
-    published: bool,
-}
-
-#[derive(Serialize, JsonSchema)]
-struct UpdateResponse {
-    response: String,
-}
 
 #[openapi(tag = "Home")]
 #[get("/")]
