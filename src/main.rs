@@ -1,5 +1,7 @@
-pub mod schema;
+#![recursion_limit = "256"]
+
 pub mod models;
+pub mod schema;
 
 #[macro_use]
 extern crate rocket;
@@ -8,6 +10,7 @@ extern crate rocket;
 extern crate diesel;
 
 use diesel::prelude::*;
+use models::*;
 use rocket::{fairing::AdHoc, response::Debug, serde::json::Json, State};
 use rocket_okapi::{
     openapi, openapi_get_routes,
@@ -15,24 +18,10 @@ use rocket_okapi::{
     settings::UrlObject,
     swagger_ui::{make_swagger_ui, SwaggerUIConfig},
 };
-use rocket_sync_db_pools::{database, diesel::PgConnection};
-use models::*;
 use schema::books;
 
 type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;
 
-// table! {
-//     books (id) {
-//         id -> Int4,
-//         title -> Varchar,
-//         author -> Varchar,
-//         description -> Text,
-//         published -> Bool,
-//     }
-// }
-
-#[database("rootkill")]
-pub struct Db(PgConnection);
 
 impl<'r> OpenApiFromRequest<'r> for Db {
     fn from_request_input(
@@ -44,11 +33,10 @@ impl<'r> OpenApiFromRequest<'r> for Db {
     }
 }
 
-
 #[openapi(tag = "Home")]
 #[get("/")]
 fn index() -> &'static str {
-    "Welcome to Dusty Shelf"
+    "Welcome To The Dusty Shelf"
 }
 
 #[openapi(tag = "Config")]
@@ -61,7 +49,7 @@ fn get_config(config: &State<Config>) -> String {
 #[get("/book/random")]
 fn get_random_book() -> Json<Book> {
     Json(Book {
-        id: 1,
+        id: 0,
         title: String::from("Your Personal Diary"),
         author: String::from("You"),
         description: String::from("You know what this is about! We don't want to know! :)"),
@@ -73,7 +61,7 @@ fn get_random_book() -> Json<Book> {
 #[get("/book/<id>")]
 async fn get_by_id(connection: Db, id: i32) -> Json<Book> {
     connection
-        .run(move |c| books::table.filter(books::id.eq(&id)).first(c))
+        .run(move |c| books::table.filter(books::id.eq(&id)).get_result(c))
         .await
         .map(Json)
         .expect(format!("Cannot find book with id : {}", id).as_str())
@@ -114,12 +102,12 @@ async fn delete_book(connection: Db, id: i32) -> Result<Option<()>> {
         })
         .await?;
 
-    Ok((res == 1).then(|| ()))
+    Ok((res == 1).then_some(()))
 }
 
 #[openapi(tag = "Update Book")]
 #[put("/update_book/<id>", data = "<book>")]
-async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<UpdateResponse> {
+async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<DSResponse> {
     match connection
         .run(move |c| {
             diesel::update(books::table.filter(books::id.eq(id)))
@@ -131,10 +119,10 @@ async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<UpdateRe
         })
         .await
     {
-        Ok(res) => Json(UpdateResponse {
+        Ok(res) => Json(DSResponse {
             response: format!("Book Successfully Updated! RESULT: {}", res),
         }),
-        Err(e) => Json(UpdateResponse {
+        Err(e) => Json(DSResponse {
             response: format!("Failed to update the book! REASON: {}", e),
         }),
     }
