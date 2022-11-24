@@ -3,13 +3,8 @@
 [default]
 name = "etch1000"
 age = 24
-address = "127.0.0.1"
-port = 443
 
 [default.databases.rootkill]
 # url = "postgresql://rootkill:example@localhost/rootkill"
 url = "postgresql://postgres:dustyshelfpgsql@34.100.139.233:5432/dustyshelf"
 
-[default.tls]
-certs = "private/dscert.pem"
-key = "private/dspkey.pem"
