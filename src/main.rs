@@ -64,7 +64,7 @@ async fn get_by_id(connection: Db, id: i32) -> Json<Book> {
         .run(move |c| books::table.filter(books::id.eq(&id)).get_result(c))
         .await
         .map(Json)
-        .expect(format!("Cannot find book with id : {}", id).as_str())
+        .unwrap_or_else(|_| panic!("Cannot find book with id : {}", id))
 }
 
 #[openapi(tag = "Books")]
