@@ -4,7 +4,7 @@
 name = "etch1000"
 age = 24
 
-[default.databases.rootkill]
+[default.databases.dustyshelf]
 # url = "postgresql://rootkill:example@localhost/rootkill"
 url = "postgresql://postgres:dustyshelfpgsql@34.100.139.233:5432/dustyshelf"
 

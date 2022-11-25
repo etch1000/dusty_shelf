@@ -25,5 +25,5 @@ pub struct DSResponse {
     pub response: String,
 }
 
-#[database("rootkill")]
+#[database("dustyshelf")]
 pub struct Db(PgConnection);
