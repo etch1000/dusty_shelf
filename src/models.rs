@@ -10,7 +10,7 @@ pub struct Config {
     pub age: u8,
 }
 
-#[derive(Deserialize, Serialize, Queryable, Debug, Insertable, JsonSchema)]
+#[derive(Deserialize, Serialize, Queryable, Debug, Insertable, JsonSchema, PartialEq)]
 #[diesel(table_name = books)]
 pub struct Book {
     pub id: i32,
@@ -20,10 +20,17 @@ pub struct Book {
     pub published: bool,
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Serialize, JsonSchema, Queryable)]
 pub struct DSResponse {
     pub response: String,
 }
 
-#[database("dustyshelf")]
+#[database("postgres")]
 pub struct Db(PgConnection);
+
+#[derive(Serialize, Deserialize, JsonSchema, Debug)]
+pub struct Error {
+    pub err: String,
+    pub msg: Option<String>,
+    pub code: u16,
+}
