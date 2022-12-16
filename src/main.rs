@@ -341,37 +341,29 @@ mod tests {
 
         let exp_res = Json(vec![
             Book {
-                id: 0,
-                title: String::from("Personal Diary"),
-                author: String::from("You"),
-                description: String::from("It's a secret! Shhhh..."),
-                published: true,
-                encoded: vec![0],
+                  id: 0,
+                  title: String::from("Personal Diary"),
+                  author: String::from("You"),
+                  description: String::from("It's a secret! Shhhh..."),
+                  published: true,
+                  encoded: vec![0],
             },
-            // Book {
-            //   id: 1,
-            //   title: String::from("Frankenstein"),
-            //   author: String::from("Mary Shelley"),
-            //   description: String::from("Frankenstein is an old classic about a scientist who creates a monster and the awful events he unintentionally causes"),
-            //   published: true,
-            //   encoded: vec![0],
-            // },
-            // Book {
-            //   id: 2,
-            //   title: String::from("To kill a mockingbird"),
-            //   author: String::from("Harper Lee"),
-            //   description: String::from("Scout, Arthur, Lawyer"),
-            //   published: true,
-            //   encoded: vec![0],
-            // },
-            // Book {
-            //   id: 3,
-            //   title: String::from("Nineteen Eighty-Four"),
-            //   author: String::from("George Orwell"),
-            //   description: String::from("The story takes place in an imagined future in the year 1984, when much of the world is in perpetual war. Great Britain, now known as Airstrip One, has become a province of the totalitarian superstate Oceania, which is led by Big Brother, a dictatorial leader supported by an intense cult of personality manufactured by the Party's Thought Police. Through the Ministry of Truth, the Party engages in omnipresent government surveillance, historical negationism, and constant propaganda to persecute individuality and independent thinking"),
-            //   published: true,
-            //   encoded: vec![0],
-            // }
+            Book {
+                  id: 1,
+                  title: String::from("To Kill A Mockingbird"),
+                  author: String::from("Harper Lee"),
+                  description: String::from("To Kill a Mockingbird is both a young girl's coming-of-age story and a darker drama about the roots and consequences of racism and prejudice, probing how good and evil can coexist within a single community or individual."),
+                  published: true,
+                  encoded: vec![0],
+            },
+            Book {
+                  id: 2,
+                  title: String::from("Frankenstein"),
+                  author: String::from("Mary Shelley"),
+                  description: String::from("The book tells the story of Victor Frankenstein, a Swiss student of natural science who creates an artificial man from pieces of corpses and brings his creature to life."),
+                  published: true,
+                  encoded: vec![0],
+            },
         ]);
 
         let res = client.get(uri!(super::get_all_books)).dispatch();
@@ -402,7 +394,7 @@ mod tests {
             .dispatch();
 
         assert_eq!(book_but_in_string, res.into_string().unwrap());
-        
+
         let update_todo = Book {
             id: 10,
             title: String::from("test book new"),
@@ -414,12 +406,17 @@ mod tests {
 
         let update_todo_in_string = json::to_string(&update_todo).unwrap();
 
-        let updateres = client.put("/update_book/10").header(ContentType::JSON).body(&update_todo_in_string).dispatch();
+        let updateres = client
+            .put("/update_book/10")
+            .header(ContentType::JSON)
+            .body(&update_todo_in_string)
+            .dispatch();
 
-        assert_eq!(DSResponse {
-            response: String::from("Book Successfully Updated! RESULT: 1"),
-        },
-        updateres.into_json::<DSResponse>().unwrap()
+        assert_eq!(
+            DSResponse {
+                response: String::from("Book Successfully Updated! RESULT: 1"),
+            },
+            updateres.into_json::<DSResponse>().unwrap()
         );
 
         let delres = client.delete("/delete_book/10").dispatch();
