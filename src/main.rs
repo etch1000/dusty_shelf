@@ -1,5 +1,5 @@
 pub mod models;
-pub mod schema;
+pub mod scheme;
 
 #[macro_use]
 extern crate rocket;
@@ -9,14 +9,20 @@ extern crate diesel;
 
 use diesel::prelude::*;
 use models::*;
-use rocket::{fairing::AdHoc, local::blocking::Client, response::Debug, serde::json::Json, State};
+use rocket::{
+    fairing::AdHoc,
+    local::blocking::Client,
+    response::{status, Debug},
+    serde::json::Json,
+    State,
+};
 use rocket_okapi::{
     openapi, openapi_get_routes,
     request::{OpenApiFromRequest, RequestHeaderInput},
     settings::UrlObject,
     swagger_ui::{make_swagger_ui, SwaggerUIConfig},
 };
-use schema::books;
+use scheme::books;
 
 type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;
 
@@ -31,14 +37,12 @@ impl<'r> OpenApiFromRequest<'r> for Db {
 }
 
 #[catch(404)]
-fn not_found() -> Json<Error> {
-    Json(
-        Error {
-            err: String::from("Not Found"),
-            msg: Some(String::from("There's just dust all over here")),
-            code: 404,
-        }
-    )
+fn not_found() -> Json<models::Error> {
+    Json(models::Error {
+        err: String::from("Not Found"),
+        msg: Some(String::from("There's just Dust all over here")),
+        code: 404,
+    })
 }
 
 #[openapi(tag = "Home")]
@@ -62,19 +66,27 @@ fn get_random_book() -> Json<Book> {
         author: String::from("You"),
         description: String::from("You know what this is about! We don't want to know! :)"),
         published: true,
+        encoded: vec![0],
     })
 }
 
 #[openapi(tag = "Books")]
 #[get("/book/<id>")]
-async fn get_by_id(connection: Db, id: i32) -> Result<Json<Book>, String> {
+async fn get_by_id(
+    connection: Db,
+    id: i32,
+) -> Result<Json<Book>, status::NotFound<Json<models::Error>>> {
     match connection
         .run(move |c| books::table.filter(books::id.eq(&id)).get_result(c))
         .await
         .map(Json)
     {
         Ok(book) => Ok(book),
-        Err(_) => Err(format!("Only Dust Was To Found At The {}th Spot", id)),
+        Err(_) => Err(status::NotFound(Json(models::Error {
+            err: String::from("Not Found"),
+            msg: Some(String::from("There's just Dust all over here")),
+            code: 404,
+        }))),
     }
 }
 
@@ -89,7 +101,7 @@ async fn get_all_books(connection: Db) -> Json<Vec<Book>> {
 }
 
 #[openapi(tag = "Add Book")]
-#[post("/add_book", data = "<book>")]
+#[post("/add_book", format = "json", data = "<book>")]
 async fn add_book(connection: Db, book: Json<Book>) -> Json<Book> {
     connection
         .run(move |c| {
@@ -104,21 +116,38 @@ async fn add_book(connection: Db, book: Json<Book>) -> Json<Book> {
 
 #[openapi(tag = "Delete Book")]
 #[delete("/delete_book/<id>")]
-async fn delete_book(connection: Db, id: i32) -> Result<Option<()>> {
+async fn delete_book(
+    connection: Db,
+    id: i32,
+) -> Result<Json<DSResponse>, status::NotFound<Json<models::Error>>> {
     let res = connection
         .run(move |c| {
             diesel::delete(books::table)
                 .filter(books::id.eq(id))
                 .execute(c)
         })
-        .await?;
+        .await;
 
-    Ok((res == 1).then_some(()))
+    if res == Ok(1) {
+        Ok(Json(DSResponse {
+            response: format!("Book with id: {} is removed from the Shelf now", id),
+        }))
+    } else {
+        Err(status::NotFound(Json(models::Error {
+            err: String::from("Not Found"),
+            msg: Some(String::from("There's just Dust all over here")),
+            code: 404,
+        })))
+    }
 }
 
 #[openapi(tag = "Update Book")]
 #[put("/update_book/<id>", data = "<book>")]
-async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<DSResponse> {
+async fn update_book(
+    connection: Db,
+    id: i32,
+    book: Json<Book>,
+) -> Result<Json<DSResponse>, status::NotFound<Json<models::Error>>> {
     match connection
         .run(move |c| {
             diesel::update(books::table.filter(books::id.eq(id)))
@@ -130,12 +159,14 @@ async fn update_book(connection: Db, id: i32, book: Json<Book>) -> Json<DSRespon
         })
         .await
     {
-        Ok(res) => Json(DSResponse {
+        Ok(res) => Ok(Json(DSResponse {
             response: format!("Book Successfully Updated! RESULT: {}", res),
-        }),
-        Err(e) => Json(DSResponse {
-            response: format!("Failed to update the book! REASON: {}", e),
-        }),
+        })),
+        Err(_) => Err(status::NotFound(Json(models::Error {
+            err: String::from("Not Found"),
+            msg: Some(String::from("There's just Dust all over here")),
+            code: 404,
+        }))),
     }
 }
 
@@ -156,6 +187,17 @@ fn make_client() -> Client {
 
 #[launch]
 fn rocket() -> _ {
+    // let book_to_add = Json(Book {
+    //     id: 10,
+    //     title: String::from("Test Book"),
+    //     author: String::from("Test Author"),
+    //     description: String::from("Test Description"),
+    //     published: true,
+    //     encoded: vec![0],
+    // });
+
+    // println!("Book is : {:#?}", &*book_to_add);
+
     rocket::build()
         .attach(Db::fairing())
         .attach(AdHoc::config::<Config>())
@@ -178,9 +220,9 @@ fn rocket() -> _ {
 
 #[cfg(test)]
 mod tests {
-    use super::rocket;
+    use super::*;
     use crate::{make_client, models::Book};
-    use rocket::{http::Status, serde::json::Json};
+    use rocket::{http::Status, serde::json};
 
     #[test]
     fn test_index_status() {
@@ -240,6 +282,7 @@ mod tests {
             author: String::from("You"),
             description: String::from("You know what this is about! We don't want to know! :)"),
             published: true,
+            encoded: vec![0],
         });
 
         let res = client.get(uri!(super::get_random_book)).dispatch();
@@ -260,15 +303,14 @@ mod tests {
     fn test_get_by_id_content() {
         let client = make_client();
 
-        let exp_res = Json(
-            Book {
-                id: 0,
-                title: String::from("Personal Diary"),
-                author: String::from("You"),
-                description: String::from("It's a secret! Shhhh..."),
-                published: true,
-            }
-        );
+        let exp_res = Json(Book {
+            id: 0,
+            title: String::from("Personal Diary"),
+            author: String::from("You"),
+            description: String::from("It's a secret! Shhhh..."),
+            published: true,
+            encoded: vec![0],
+        });
 
         let res = client.get("/book/0").dispatch();
 
@@ -298,38 +340,95 @@ mod tests {
         let client = make_client();
 
         let exp_res = Json(vec![
-          Book {
-            id: 0,
-            title: String::from("Personal Diary"),
-            author: String::from("You"),
-            description: String::from("It's a secret! Shhhh..."),
-            published: true
-          },
-          Book {
-            id: 1,
-            title: String::from("Frankenstein"),
-            author: String::from("Mary Shelley"),
-            description: String::from("Frankenstein is an old classic about a scientist who creates a monster and the awful events he unintentionally causes"),
-            published: true
-          },
-          Book {
-            id: 2,
-            title: String::from("To kill a mockingbird"),
-            author: String::from("Harper Lee"),
-            description: String::from("Scout, Arthur, Lawyer"),
-            published: true
-          },
-          Book {
-            id: 3,
-            title: String::from("Nineteen Eighty-Four"),
-            author: String::from("George Orwell"),
-            description: String::from("The story takes place in an imagined future in the year 1984, when much of the world is in perpetual war. Great Britain, now known as Airstrip One, has become a province of the totalitarian superstate Oceania, which is led by Big Brother, a dictatorial leader supported by an intense cult of personality manufactured by the Party's Thought Police. Through the Ministry of Truth, the Party engages in omnipresent government surveillance, historical negationism, and constant propaganda to persecute individuality and independent thinking"),
-            published: true
-          }
+            Book {
+                id: 0,
+                title: String::from("Personal Diary"),
+                author: String::from("You"),
+                description: String::from("It's a secret! Shhhh..."),
+                published: true,
+                encoded: vec![0],
+            },
+            // Book {
+            //   id: 1,
+            //   title: String::from("Frankenstein"),
+            //   author: String::from("Mary Shelley"),
+            //   description: String::from("Frankenstein is an old classic about a scientist who creates a monster and the awful events he unintentionally causes"),
+            //   published: true,
+            //   encoded: vec![0],
+            // },
+            // Book {
+            //   id: 2,
+            //   title: String::from("To kill a mockingbird"),
+            //   author: String::from("Harper Lee"),
+            //   description: String::from("Scout, Arthur, Lawyer"),
+            //   published: true,
+            //   encoded: vec![0],
+            // },
+            // Book {
+            //   id: 3,
+            //   title: String::from("Nineteen Eighty-Four"),
+            //   author: String::from("George Orwell"),
+            //   description: String::from("The story takes place in an imagined future in the year 1984, when much of the world is in perpetual war. Great Britain, now known as Airstrip One, has become a province of the totalitarian superstate Oceania, which is led by Big Brother, a dictatorial leader supported by an intense cult of personality manufactured by the Party's Thought Police. Through the Ministry of Truth, the Party engages in omnipresent government surveillance, historical negationism, and constant propaganda to persecute individuality and independent thinking"),
+            //   published: true,
+            //   encoded: vec![0],
+            // }
         ]);
 
         let res = client.get(uri!(super::get_all_books)).dispatch();
 
         assert_eq!(exp_res.into_inner(), res.into_json::<Vec<Book>>().unwrap());
+    }
+
+    #[test]
+    fn test_add_update_delete_book() {
+        use rocket::http::ContentType;
+        let client = make_client();
+
+        let book_to_add = Book {
+            id: 10,
+            title: String::from("test book"),
+            author: String::from("test author"),
+            description: String::from("test description"),
+            published: true,
+            encoded: vec![0],
+        };
+
+        let book_but_in_string = json::to_string(&book_to_add).unwrap();
+
+        let res = client
+            .post(uri!(super::add_book))
+            .header(ContentType::JSON)
+            .body(&book_but_in_string)
+            .dispatch();
+
+        assert_eq!(book_but_in_string, res.into_string().unwrap());
+        
+        let update_todo = Book {
+            id: 10,
+            title: String::from("test book new"),
+            author: String::from("test author"),
+            description: String::from("test description new"),
+            published: true,
+            encoded: vec![0],
+        };
+
+        let update_todo_in_string = json::to_string(&update_todo).unwrap();
+
+        let updateres = client.put("/update_book/10").header(ContentType::JSON).body(&update_todo_in_string).dispatch();
+
+        assert_eq!(DSResponse {
+            response: String::from("Book Successfully Updated! RESULT: 1"),
+        },
+        updateres.into_json::<DSResponse>().unwrap()
+        );
+
+        let delres = client.delete("/delete_book/10").dispatch();
+
+        assert_eq!(
+            DSResponse {
+                response: String::from("Book with id: 10 is removed from the Shelf now")
+            },
+            delres.into_json::<DSResponse>().unwrap()
+        )
     }
 }

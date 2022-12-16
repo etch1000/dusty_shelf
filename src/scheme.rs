@@ -7,5 +7,6 @@ diesel::table! {
         author -> Varchar,
         description -> Text,
         published -> Bool,
+        encoded -> Bytea,
     }
 }

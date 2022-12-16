@@ -1,8 +1,9 @@
-use crate::schema::*;
+use crate::scheme::*;
+
 use diesel::{Insertable, Queryable};
+use rocket::serde::{Deserialize, Serialize};
 use rocket_okapi::JsonSchema;
 use rocket_sync_db_pools::{database, diesel::PgConnection};
-use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -12,15 +13,23 @@ pub struct Config {
 
 #[derive(Deserialize, Serialize, Queryable, Debug, Insertable, JsonSchema, PartialEq)]
 #[diesel(table_name = books)]
+#[serde(crate = "rocket::serde")]
 pub struct Book {
     pub id: i32,
     pub title: String,
     pub author: String,
     pub description: String,
     pub published: bool,
+    pub encoded: Vec<u8>,
 }
 
-#[derive(Serialize, JsonSchema, Queryable)]
+impl AsRef<[u8]> for Book {
+    fn as_ref(&self) -> &[u8] {
+        &self.encoded
+    }
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, JsonSchema, Queryable)]
 pub struct DSResponse {
     pub response: String,
 }
