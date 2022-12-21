@@ -13,3 +13,7 @@ rocket_sync_db_pools = { version = "0.1.0-rc.2", features = ["diesel_postgres_po
 rocket_okapi = { version = "=0.8.0-rc.2", features = ["swagger", "rapidoc"] }
 schemars = "0.8.10"
 serde = { version = "1.0.147", features = ["derive"] }
+dotenv = "0.15.0"
+lazy_static = { version = "1.4.0", default-features = false }
+jsonwebtoken = { version = "8.2.0", default-features = false }
+chrono = { version = "0.4.23", default-features = false, features = ["serde"] }

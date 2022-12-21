@@ -8,15 +8,31 @@ extern crate rocket;
 extern crate diesel;
 
 use diesel::prelude::*;
+use dotenv::dotenv;
+use jsonwebtoken as jwt;
 use models::*;
+use okapi::openapi3::{
+    MediaType,
+    Object,
+    Response as OpenApiResponse,
+    Responses,
+    SecurityRequirement,
+    SecurityScheme,
+    SecuritySchemeData,
+};
 use rocket::{
     fairing::AdHoc,
+    http,
+    http::Status,
     local::blocking::Client,
+    outcome::Outcome,
+    request::{FromRequest, Request},
     response::{status, Debug},
     serde::json::Json,
     State,
 };
 use rocket_okapi::{
+    gen::OpenApiGenerator,
     openapi, openapi_get_routes,
     request::{OpenApiFromRequest, RequestHeaderInput},
     settings::UrlObject,
@@ -25,6 +41,127 @@ use rocket_okapi::{
 use scheme::books;
 
 type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;
+
+lazy_static::lazy_static! {
+    static ref ENCODEKEY: jwt::EncodingKey = {
+        dotenv().ok();
+
+        // let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
+        let secret = b"rootkill";
+
+        jwt::EncodingKey::from_secret(secret)
+    };
+
+    static ref DECODEKEY: jwt::DecodingKey = {
+        dotenv().ok();
+
+        // let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
+        let secret = b"rootkill";
+
+        jwt::DecodingKey::from_secret(secret)
+    };
+
+    static ref JWT_SECRET: jwt::DecodingKey = {
+        // let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
+        let secret = b"rootkill";
+
+        jwt::DecodingKey::from_secret(secret)
+    };
+}
+
+fn create_jwt(ds_user: DSUser) -> Result<String, jwt::errors::Error> {
+    let ds_user_access = DSUser {
+        aud: ds_user.aud,
+        sub: ds_user.sub,
+        exp: ds_user.exp,
+    };
+
+    jwt::encode(&jwt::Header::default(), &ds_user_access, &ENCODEKEY)
+}
+
+// fn parse_jwt(jwtoken: &str) -> Result<DSUser, Json<DSError>> {
+//     let ds_user: DSUser = jwt::decode(jwtoken, &DECODEKEY, &jwt::Validation::default())
+//         .map_err(|_| {
+//             Json(DSError {
+//                 err: String::from("Failed to Parse JWT"),
+//                 msg: Some(String::from("Failed to Parse JWT")),
+//                 code: 400,
+//             })
+//         })?
+//         .claims;
+
+//     Ok(ds_user)
+// }
+
+fn decode_jwt<T: serde::de::DeserializeOwned>(
+    jwtoken: &str,
+    jwt_secret: &jwt::DecodingKey,
+) -> Result<DSUser, Status> {
+    jwt::decode(jwtoken, jwt_secret, &jwt::Validation::default())
+        .map_err(|_| Status::Unauthorized)
+        .map(|data| data.claims)
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for DSUser {
+    type Error = http::Status;
+
+    async fn from_request(req: &'r Request<'_>) -> Outcome<Self, (Self::Error, Self::Error), ()> {
+        let header = match req.headers().get_one("Authorization") {
+            Some(header) => header,
+            None => return Outcome::Failure((Status::Unauthorized, Status::Unauthorized)),
+        };
+
+        let result = if let Some(header) = header.strip_prefix("Bearer ") {
+            decode_jwt::<DSUser>(header, &JWT_SECRET)
+        } else {
+            decode_jwt::<DSUser>(header, &JWT_SECRET)
+        };
+
+        match result {
+            Ok(ds_user) => Outcome::Success(ds_user),
+            Err(_status) => Outcome::Failure((Status::Unauthorized, Status::Unauthorized)),
+        }
+    }
+}
+
+impl<'r> OpenApiFromRequest<'r> for DSUser {
+    fn from_request_input(
+        _gen: &mut OpenApiGenerator,
+        _name: String,
+        _required: bool,
+    ) -> rocket_okapi::Result<RequestHeaderInput> {
+        let security_scheme = SecurityScheme {
+            description: Some("Requires a Bearer Token to Access.".to_owned()),
+            data: SecuritySchemeData::ApiKey {
+                name: "Authorization".to_owned(),
+                location: "header".to_owned(),
+            },
+            extensions: Object::default(),
+        };
+
+        let mut security_req = SecurityRequirement::new();
+        security_req.insert("DSUser".to_owned(), Vec::new());
+        Ok(RequestHeaderInput::Security(
+            "DSUser".to_owned(),
+            security_scheme,
+            security_req,
+        ))
+    }
+
+    fn get_responses(
+        _gen: &mut OpenApiGenerator,
+    ) -> rocket_okapi::Result<Responses> {
+        use okapi::openapi3::RefOr;
+
+        Ok(Responses {
+            responses: okapi::map! {
+                "401".to_owned() => RefOr::Object(unauthorized_response(_gen))
+            },
+            ..Default::default()
+        })
+    }
+}
 
 impl<'r> OpenApiFromRequest<'r> for Db {
     fn from_request_input(
@@ -37,29 +174,66 @@ impl<'r> OpenApiFromRequest<'r> for Db {
 }
 
 #[catch(404)]
-fn not_found() -> Json<models::Error> {
-    Json(models::Error {
+fn not_found() -> Json<DSError> {
+    Json(DSError {
         err: String::from("Not Found"),
         msg: Some(String::from("There's just Dust all over here")),
         code: 404,
     })
 }
 
+#[catch(401)]
+fn unauthorized() -> Json<DSError> {
+    Json(DSError { err: String::from("Unauthorized"), msg: Some(String::from("You are not authorized to perform this action")), code: 401 })
+}
+
+fn unauthorized_response(gen: &mut OpenApiGenerator) -> OpenApiResponse {
+    let schema = gen.json_schema::<DSError>();
+
+    OpenApiResponse {
+        description: "\
+            # [401 Unauthorized](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401)\n\
+            This response is given when you request a page that you don't have access to \
+            or you have not provided any authentication. "
+            .to_owned(),
+        content: okapi::map! {
+            "application/json".to_owned() => MediaType {
+                schema: Some(schema),
+                ..Default::default()
+            }
+        },
+        ..Default::default()
+    }
+    // Json(DSError {
+    //     err: String::from("Unauthorized"),
+    //     msg: Some(String::from("You are not authorized to perform this action")),
+    //     code: 401,
+    // })
+}
+
 #[openapi(tag = "Home")]
 #[get("/")]
-fn index() -> &'static str {
-    "Welcome To The Dusty Shelf"
+fn index(_ds_user: DSUser) -> &'static str {
+    // if ds_user.sub != "DSUSER" {
+    //     return Err(Json(DSError {
+    //         err: String::from("Unauthorized"),
+    //         msg: Some(String::from("You are unauthorized to perform this action")),
+    //         code: 401,
+    //     }))
+    // } else {
+        "Welcome To The Dusty Shelf"
+    // }
 }
 
 #[openapi(tag = "Config")]
 #[get("/config")]
-fn get_config(config: &State<Config>) -> String {
+fn get_config(_ds_user: DSUser, config: &State<Config>) -> String {
     format!("Hello {}, welcome to the club {}!", config.name, config.age)
 }
 
 #[openapi(tag = "Books")]
 #[get("/book/random")]
-fn get_random_book() -> Json<Book> {
+fn get_random_book(_ds_user: DSUser) -> Json<Book> {
     Json(Book {
         id: 0,
         title: String::from("Your Personal Diary"),
@@ -72,27 +246,25 @@ fn get_random_book() -> Json<Book> {
 
 #[openapi(tag = "Books")]
 #[get("/book/<id>")]
-async fn get_by_id(
-    connection: Db,
-    id: i32,
-) -> Result<Json<Book>, status::NotFound<Json<models::Error>>> {
+async fn get_by_id(_ds_user: DSUser, connection: Db, id: i32) -> Result<Json<Book>, status::NotFound<Json<DSError>>> {
     match connection
         .run(move |c| books::table.filter(books::id.eq(&id)).get_result(c))
         .await
         .map(Json)
     {
         Ok(book) => Ok(book),
-        Err(_) => Err(status::NotFound(Json(models::Error {
-            err: String::from("Not Found"),
-            msg: Some(String::from("There's just Dust all over here")),
-            code: 404,
-        }))),
+        // Err(_) => Err(status::NotFound(Json(DSError {
+        //     err: String::from("Not Found"),
+        //     msg: Some(String::from("There's just Dust all over here")),
+        //     code: 404,
+        // }))),
+        Err(_) => Err(status::NotFound(DSError::default_404()))
     }
 }
 
 #[openapi(tag = "Books")]
 #[get("/book/all")]
-async fn get_all_books(connection: Db) -> Json<Vec<Book>> {
+async fn get_all_books(_ds_user: DSUser, connection: Db) -> Json<Vec<Book>> {
     connection
         .run(|c| books::table.load(c))
         .await
@@ -102,7 +274,7 @@ async fn get_all_books(connection: Db) -> Json<Vec<Book>> {
 
 #[openapi(tag = "Add Book")]
 #[post("/add_book", format = "json", data = "<book>")]
-async fn add_book(connection: Db, book: Json<Book>) -> Json<Book> {
+async fn add_book(_ds_user: DSUser, connection: Db, book: Json<Book>) -> Json<Book> {
     connection
         .run(move |c| {
             diesel::insert_into(books::table)
@@ -117,9 +289,10 @@ async fn add_book(connection: Db, book: Json<Book>) -> Json<Book> {
 #[openapi(tag = "Delete Book")]
 #[delete("/delete_book/<id>")]
 async fn delete_book(
+    _ds_user: DSUser,
     connection: Db,
     id: i32,
-) -> Result<Json<DSResponse>, status::NotFound<Json<models::Error>>> {
+) -> Result<Json<DSResponse>, status::NotFound<Json<DSError>>> {
     let res = connection
         .run(move |c| {
             diesel::delete(books::table)
@@ -133,26 +306,29 @@ async fn delete_book(
             response: format!("Book with id: {} is removed from the Shelf now", id),
         }))
     } else {
-        Err(status::NotFound(Json(models::Error {
-            err: String::from("Not Found"),
-            msg: Some(String::from("There's just Dust all over here")),
-            code: 404,
-        })))
+        // Err(status::NotFound(Json(DSError {
+        //     err: String::from("Not Found"),
+        //     msg: Some(String::from("There's just Dust all over here")),
+        //     code: 404,
+        // })))
+        Err(status::NotFound(DSError::default_404()))
     }
 }
 
 #[openapi(tag = "Update Book")]
 #[put("/update_book/<id>", data = "<book>")]
 async fn update_book(
+    _ds_user: DSUser,
     connection: Db,
     id: i32,
     book: Json<Book>,
-) -> Result<Json<DSResponse>, status::NotFound<Json<models::Error>>> {
+) -> Result<Json<DSResponse>, status::NotFound<Json<DSError>>> {
     match connection
         .run(move |c| {
             diesel::update(books::table.filter(books::id.eq(id)))
                 .set((
                     books::title.eq(&book.title),
+                    books::author.eq(&book.author),
                     books::description.eq(&book.description),
                 ))
                 .execute(c)
@@ -160,13 +336,14 @@ async fn update_book(
         .await
     {
         Ok(res) => Ok(Json(DSResponse {
-            response: format!("Book Successfully Updated! RESULT: {}", res),
+            response: format!("Book Updated Successfully! RESULT: {}", res),
         })),
-        Err(_) => Err(status::NotFound(Json(models::Error {
-            err: String::from("Not Found"),
-            msg: Some(String::from("There's just Dust all over here")),
-            code: 404,
-        }))),
+        // Err(_) => Err(status::NotFound(Json(DSError {
+        //     err: String::from("Not Found"),
+        //     msg: Some(String::from("There's just Dust all over here")),
+        //     code: 404,
+        // }))),
+        Err(_) => Err(status::NotFound(DSError::default_404()))
     }
 }
 
@@ -185,23 +362,20 @@ fn make_client() -> Client {
     Client::tracked(rocket()).expect("Valid Rocket Instance")
 }
 
+// fn check_auth(ds_user: DSUser)  -> bool {
+//     if ds_user.sub != "DSUSER" {
+//         false
+//     } else {
+//         true
+//     }
+// }
+
 #[launch]
 fn rocket() -> _ {
-    // let book_to_add = Json(Book {
-    //     id: 10,
-    //     title: String::from("Test Book"),
-    //     author: String::from("Test Author"),
-    //     description: String::from("Test Description"),
-    //     published: true,
-    //     encoded: vec![0],
-    // });
-
-    // println!("Book is : {:#?}", &*book_to_add);
-
     rocket::build()
         .attach(Db::fairing())
         .attach(AdHoc::config::<Config>())
-        .register("/", catchers![not_found])
+        .register("/", catchers![not_found, unauthorized])
         .mount("/swagger", make_swagger_ui(&get_swagger_config()))
         .mount(
             "/",
