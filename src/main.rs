@@ -97,6 +97,8 @@ fn decode_jwt<T: serde::de::DeserializeOwned>(
     jwtoken: &str,
     jwt_secret: &jwt::DecodingKey,
 ) -> Result<DSUser, Status> {
+    // println!("{jwtoken:#?}");
+
     jwt::decode(jwtoken, jwt_secret, &jwt::Validation::default())
         .map_err(|_| Status::Unauthorized)
         .map(|data| data.claims)
@@ -113,10 +115,13 @@ impl<'r> FromRequest<'r> for DSUser {
         };
 
         let result = if let Some(header) = header.strip_prefix("Bearer ") {
+            println!("{:#?}", decode_jwt::<DSUser>(header, &JWT_SECRET));
             decode_jwt::<DSUser>(header, &JWT_SECRET)
         } else {
             decode_jwt::<DSUser>(header, &JWT_SECRET)
         };
+
+        println!("{result:#?}");
 
         match result {
             Ok(ds_user) => Outcome::Success(ds_user),
@@ -175,16 +180,12 @@ impl<'r> OpenApiFromRequest<'r> for Db {
 
 #[catch(404)]
 fn not_found() -> Json<DSError> {
-    Json(DSError {
-        err: String::from("Not Found"),
-        msg: Some(String::from("There's just Dust all over here")),
-        code: 404,
-    })
+    DSError::default_404()
 }
 
 #[catch(401)]
 fn unauthorized() -> Json<DSError> {
-    Json(DSError { err: String::from("Unauthorized"), msg: Some(String::from("You are not authorized to perform this action")), code: 401 })
+    DSError::default_401()
 }
 
 fn unauthorized_response(gen: &mut OpenApiGenerator) -> OpenApiResponse {
@@ -361,14 +362,6 @@ fn get_swagger_config() -> SwaggerUIConfig {
 fn make_client() -> Client {
     Client::tracked(rocket()).expect("Valid Rocket Instance")
 }
-
-// fn check_auth(ds_user: DSUser)  -> bool {
-//     if ds_user.sub != "DSUSER" {
-//         false
-//     } else {
-//         true
-//     }
-// }
 
 #[launch]
 fn rocket() -> _ {
