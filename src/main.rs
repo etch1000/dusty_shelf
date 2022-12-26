@@ -12,12 +12,7 @@ use dotenv::dotenv;
 use jsonwebtoken as jwt;
 use models::*;
 use okapi::openapi3::{
-    MediaType,
-    Object,
-    Response as OpenApiResponse,
-    Responses,
-    SecurityRequirement,
-    SecurityScheme,
+    MediaType, Object, Response as OpenApiResponse, Responses, SecurityRequirement, SecurityScheme,
     SecuritySchemeData,
 };
 use rocket::{
@@ -46,30 +41,29 @@ lazy_static::lazy_static! {
     static ref ENCODEKEY: jwt::EncodingKey = {
         dotenv().ok();
 
-        // let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
-        let secret = b"rootkill";
+        let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
 
-        jwt::EncodingKey::from_secret(secret)
+        jwt::EncodingKey::from_secret(secret.as_bytes())
     };
 
     static ref DECODEKEY: jwt::DecodingKey = {
         dotenv().ok();
 
-        // let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
-        let secret = b"rootkill";
+        let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
 
-        jwt::DecodingKey::from_secret(secret)
+        jwt::DecodingKey::from_secret(secret.as_bytes())
     };
 
     static ref JWT_SECRET: jwt::DecodingKey = {
-        // let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
-        let secret = b"rootkill";
+        dotenv().ok();
 
-        jwt::DecodingKey::from_secret(secret)
+        let secret = std::env::var("JWT_SECRET").expect("`JWT_SECRET` must be set in environment");
+
+        jwt::DecodingKey::from_secret(secret.as_bytes())
     };
 }
 
-fn create_jwt(ds_user: DSUser) -> Result<String, jwt::errors::Error> {
+fn _create_jwt(ds_user: DSUser) -> Result<String, jwt::errors::Error> {
     let ds_user_access = DSUser {
         aud: ds_user.aud,
         sub: ds_user.sub,
@@ -97,8 +91,6 @@ fn decode_jwt<T: serde::de::DeserializeOwned>(
     jwtoken: &str,
     jwt_secret: &jwt::DecodingKey,
 ) -> Result<DSUser, Status> {
-    // println!("{jwtoken:#?}");
-
     jwt::decode(jwtoken, jwt_secret, &jwt::Validation::default())
         .map_err(|_| Status::Unauthorized)
         .map(|data| data.claims)
@@ -115,13 +107,10 @@ impl<'r> FromRequest<'r> for DSUser {
         };
 
         let result = if let Some(header) = header.strip_prefix("Bearer ") {
-            println!("{:#?}", decode_jwt::<DSUser>(header, &JWT_SECRET));
             decode_jwt::<DSUser>(header, &JWT_SECRET)
         } else {
             decode_jwt::<DSUser>(header, &JWT_SECRET)
         };
-
-        println!("{result:#?}");
 
         match result {
             Ok(ds_user) => Outcome::Success(ds_user),
@@ -154,9 +143,7 @@ impl<'r> OpenApiFromRequest<'r> for DSUser {
         ))
     }
 
-    fn get_responses(
-        _gen: &mut OpenApiGenerator,
-    ) -> rocket_okapi::Result<Responses> {
+    fn get_responses(_gen: &mut OpenApiGenerator) -> rocket_okapi::Result<Responses> {
         use okapi::openapi3::RefOr;
 
         Ok(Responses {
@@ -205,25 +192,12 @@ fn unauthorized_response(gen: &mut OpenApiGenerator) -> OpenApiResponse {
         },
         ..Default::default()
     }
-    // Json(DSError {
-    //     err: String::from("Unauthorized"),
-    //     msg: Some(String::from("You are not authorized to perform this action")),
-    //     code: 401,
-    // })
 }
 
 #[openapi(tag = "Home")]
 #[get("/")]
 fn index(_ds_user: DSUser) -> &'static str {
-    // if ds_user.sub != "DSUSER" {
-    //     return Err(Json(DSError {
-    //         err: String::from("Unauthorized"),
-    //         msg: Some(String::from("You are unauthorized to perform this action")),
-    //         code: 401,
-    //     }))
-    // } else {
-        "Welcome To The Dusty Shelf"
-    // }
+    "Welcome To The Dusty Shelf"
 }
 
 #[openapi(tag = "Config")]
@@ -247,19 +221,18 @@ fn get_random_book(_ds_user: DSUser) -> Json<Book> {
 
 #[openapi(tag = "Books")]
 #[get("/book/<id>")]
-async fn get_by_id(_ds_user: DSUser, connection: Db, id: i32) -> Result<Json<Book>, status::NotFound<Json<DSError>>> {
+async fn get_by_id(
+    _ds_user: DSUser,
+    connection: Db,
+    id: i32,
+) -> Result<Json<Book>, status::NotFound<Json<DSError>>> {
     match connection
         .run(move |c| books::table.filter(books::id.eq(&id)).get_result(c))
         .await
         .map(Json)
     {
         Ok(book) => Ok(book),
-        // Err(_) => Err(status::NotFound(Json(DSError {
-        //     err: String::from("Not Found"),
-        //     msg: Some(String::from("There's just Dust all over here")),
-        //     code: 404,
-        // }))),
-        Err(_) => Err(status::NotFound(DSError::default_404()))
+        Err(_) => Err(status::NotFound(DSError::default_404())),
     }
 }
 
@@ -307,11 +280,6 @@ async fn delete_book(
             response: format!("Book with id: {} is removed from the Shelf now", id),
         }))
     } else {
-        // Err(status::NotFound(Json(DSError {
-        //     err: String::from("Not Found"),
-        //     msg: Some(String::from("There's just Dust all over here")),
-        //     code: 404,
-        // })))
         Err(status::NotFound(DSError::default_404()))
     }
 }
@@ -339,12 +307,7 @@ async fn update_book(
         Ok(res) => Ok(Json(DSResponse {
             response: format!("Book Updated Successfully! RESULT: {}", res),
         })),
-        // Err(_) => Err(status::NotFound(Json(DSError {
-        //     err: String::from("Not Found"),
-        //     msg: Some(String::from("There's just Dust all over here")),
-        //     code: 404,
-        // }))),
-        Err(_) => Err(status::NotFound(DSError::default_404()))
+        Err(_) => Err(status::NotFound(DSError::default_404())),
     }
 }
 
@@ -389,40 +352,104 @@ fn rocket() -> _ {
 mod tests {
     use super::*;
     use crate::{make_client, models::Book};
-    use rocket::{http::Status, serde::json};
+    use rocket::{
+        http::{Header, Status},
+        serde::json,
+    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn test_index_status() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get(uri!(super::index)).dispatch();
+        let res = client
+            .get(uri!(super::index))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(Status::Ok, res.status());
     }
 
     #[test]
     fn test_index_content() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get(uri!(super::index)).dispatch();
+        let res = client
+            .get(uri!(super::index))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!("Welcome To The Dusty Shelf", res.into_string().unwrap());
     }
 
     #[test]
     fn test_config_status() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get(uri!(super::get_config)).dispatch();
+        let res = client
+            .get(uri!(super::get_config))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(Status::Ok, res.status());
     }
 
     #[test]
     fn test_config_content() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get(uri!(super::get_config)).dispatch();
+        let res = client
+            .get(uri!(super::get_config))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(
             String::from("Hello etch1000, welcome to the club 24!"),
@@ -432,15 +459,42 @@ mod tests {
 
     #[test]
     fn test_random_book_status() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get(uri!(super::get_random_book)).dispatch();
+        let res = client
+            .get(uri!(super::get_random_book))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(Status::Ok, res.status());
     }
 
     #[test]
     fn test_random_book_content() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
         let exp_res = Json(Book {
@@ -452,22 +506,52 @@ mod tests {
             encoded: vec![0],
         });
 
-        let res = client.get(uri!(super::get_random_book)).dispatch();
+        let res = client
+            .get(uri!(super::get_random_book))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(exp_res.into_inner(), res.into_json().unwrap());
     }
 
     #[test]
     fn test_get_by_id_status() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get("/book/0").dispatch();
+        let res = client
+            .get("/book/0")
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(Status::Ok, res.status());
     }
 
     #[test]
     fn test_get_by_id_content() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
         let exp_res = Json(Book {
@@ -479,31 +563,76 @@ mod tests {
             encoded: vec![0],
         });
 
-        let res = client.get("/book/0").dispatch();
+        let res = client
+            .get("/book/0")
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(exp_res.into_inner(), res.into_json().unwrap());
     }
 
     #[test]
     fn test_get_by_id_404_status() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get("/book/0.0").dispatch();
+        let res = client
+            .get("/book/0.0")
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(Status::NotFound, res.status());
     }
 
     #[test]
     fn test_get_all_books_status() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
-        let res = client.get(uri!(super::get_all_books)).dispatch();
+        let res = client
+            .get(uri!(super::get_all_books))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(Status::Ok, res.status());
     }
 
     #[test]
     fn test_get_all_books_content() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         let client = make_client();
 
         let exp_res = Json(vec![
@@ -533,14 +662,30 @@ mod tests {
             },
         ]);
 
-        let res = client.get(uri!(super::get_all_books)).dispatch();
+        let res = client
+            .get(uri!(super::get_all_books))
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(exp_res.into_inner(), res.into_json::<Vec<Book>>().unwrap());
     }
 
     #[test]
     fn test_add_update_delete_book() {
+        let test_user: DSUser = DSUser {
+            aud: String::from("DUSTYSHELF"),
+            sub: String::from("TESTUSER"),
+            exp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+                + 25000,
+        };
+
+        let jwtest = _create_jwt(test_user).unwrap();
+
         use rocket::http::ContentType;
+
         let client = make_client();
 
         let book_to_add = Book {
@@ -557,6 +702,7 @@ mod tests {
         let res = client
             .post(uri!(super::add_book))
             .header(ContentType::JSON)
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
             .body(&book_but_in_string)
             .dispatch();
 
@@ -576,17 +722,21 @@ mod tests {
         let updateres = client
             .put("/update_book/10")
             .header(ContentType::JSON)
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
             .body(&update_todo_in_string)
             .dispatch();
 
         assert_eq!(
             DSResponse {
-                response: String::from("Book Successfully Updated! RESULT: 1"),
+                response: String::from("Book Updated Successfully! RESULT: 1"),
             },
             updateres.into_json::<DSResponse>().unwrap()
         );
 
-        let delres = client.delete("/delete_book/10").dispatch();
+        let delres = client
+            .delete("/delete_book/10")
+            .header(Header::new("Authorization", format!("Bearer {jwtest}")))
+            .dispatch();
 
         assert_eq!(
             DSResponse {

@@ -1,7 +1,7 @@
 use crate::scheme::*;
 
 use diesel::{Insertable, Queryable};
-use rocket::serde::{Deserialize, Serialize, json::Json};
+use rocket::serde::{json::Json, Deserialize, Serialize};
 use rocket_okapi::JsonSchema;
 use rocket_sync_db_pools::{database, diesel::PgConnection};
 
@@ -51,7 +51,9 @@ impl DSError {
     pub fn default_401() -> Json<DSError> {
         Json(DSError {
             err: String::from("Unauthorized"),
-            msg: Some(String::from("You are not authorized to perform this action")),
+            msg: Some(String::from(
+                "You are not authorized to perform this action",
+            )),
             code: 401,
         })
     }
@@ -69,5 +71,5 @@ impl DSError {
 pub struct DSUser {
     pub aud: String,
     pub sub: String,
-    pub exp: u64,
+    pub exp: u128,
 }

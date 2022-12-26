@@ -2,6 +2,7 @@
 FROM archlinux
 WORKDIR /app
 COPY ./dusty_shelf /app/dusty_shelf
+COPY ./.env /app/.env
 COPY Rocket.toml ./Rocket.toml
 RUN pacman -Sy libpqxx --noconfirm
 EXPOSE 8080
