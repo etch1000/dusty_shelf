@@ -1,0 +1,39 @@
+[package]
+name = "controllers"
+version = "0.3.0"
+authors = ["Harsh Kumar Moroliya <hmoroliya@ariqt.com>"]
+edition = "2021"
+
+[dependencies]
+diesel = { version = "1.4.8", default-features = false }
+diesel_migrations = { version = "1.4.0", default-features = false }
+dotenv = "0.15.0"
+jsonwebtoken = { version = "8.2.0", default-features = false }
+lazy_static = { version = "1.4.0", default-features = false }
+log = "0.4.17"
+okapi = { version = "0.7.0-rc.1" }
+rocket = { version = "0.5.0-rc.2", features = ["json"] }
+rocket_okapi = { version = "=0.8.0-rc.2", features = ["swagger", "rapidoc"] }
+schemars = "0.8.10"
+serde = { version = "1.0.147", features = ["derive"] }
+yansi = "0.5.1"
+serde_json = { version = "1.0.91", default-features = false, features = ["preserve_order"] }
+r2d2 = { version = "0.8.10", optional = true }
+rocket_sync_db_pools = { version = "0.1.0-rc.2", features = ["diesel_postgres_pool"] }
+
+[dependencies.dtos]
+path = "../dtos"
+version = "0.3.0"
+
+[dependencies.models]
+path = "../models"
+version = "0.3.0"
+
+[dependencies.services]
+path = "../services"
+version = "0.3.0"
+
+[features]
+default = []
+
+mock-databse = ["r2d2"]

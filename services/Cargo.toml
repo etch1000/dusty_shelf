@@ -1,0 +1,25 @@
+[package]
+name = "services"
+version = "0.3.0"
+authors = ["Harsh Kumar Moroliya <hmoroliya@ariqt.com>"]
+edition = "2021"
+
+[dependencies]
+diesel = { version = "1.4.8", default-features = false }
+diesel_migrations = { version = "1.4.0", default-features = false }
+dotenv = "0.15.0"
+jsonwebtoken = { version = "8.2.0", default-features = false }
+lazy_static = { version = "1.4.0", default-features = false }
+rocket = { version = "0.5.0-rc.2", features = ["json"] }
+rocket_sync_db_pools = { version = "0.1.0-rc.2", features = ["diesel_postgres_pool"] }
+serde = { version = "1.0.147", features = ["derive"] }
+chrono = { version = "0.4.23", default-features = false, features = ["clock", "serde"] }
+
+[dependencies.models]
+path = "../models"
+version = "0.3.0"
+
+[dependencies.dtos]
+path = "../dtos"
+version = "0.3.0"
+
