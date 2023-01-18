@@ -6,7 +6,7 @@ use diesel_migrations::embed_migrations;
 
 #[allow(dead_code)]
 pub(crate) fn db_connection() -> PgConnection {
-    #[cfg(debug_assertions)]
+    // #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
     let database_url = std::env::var("DATABASE_URL").expect("`DATABASE_URL` not set in env");

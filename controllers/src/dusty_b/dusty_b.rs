@@ -94,36 +94,34 @@ fn pool(db_name: &str, rocket: &Rocket<Build>) -> PoolResult<diesel::PgConnectio
 
 impl DustyBPool {
     pub fn fairing() -> impl ::rocket::fairing::Fairing {
-        AdHoc::try_on_ignite("'rootkill' Database Pool", move |rocket| async move {
+        AdHoc::try_on_ignite("'postgres' Database Pool", move |rocket| async move {
             run_blocking(move || {
-                let config = match Config::from("rootkill", &rocket) {
+                let config = match Config::from("postgres", &rocket) {
                     Ok(config) => config,
                     Err(e) => {
-                        log::error!("database config error for pool named `rootkill`: {e}");
+                        log::error!("database config error for pool named `postgres`: {e}");
                         return Err(rocket);
                     }
                 };
 
                 let pool_size = config.pool_size;
 
-                match pool("rootkill", &rocket) {
+                match pool("postgres", &rocket) {
                     Ok(pool) => Ok(rocket.manage(DustyBPool {
                         config,
                         pool: Some(pool),
                         semaphore: Arc::new(Semaphore::new(pool_size as usize)),
                     })),
                     Err(Error::Config(e)) => {
-                        log::error!("databse config error for pool named `rootkill`: {e}");
+                        log::error!("databse config error for pool named `postgres`: {e}");
                         Err(rocket)
                     }
                     Err(Error::Pool(e)) => {
-                        log::error!("database pool int error for pool named `rootkill`: {e}");
+                        log::error!("database pool int error for pool named `postgres`: {e}");
                         Err(rocket)
                     }
                     Err(Error::Custom(e)) => {
-                        log::error!(
-                            "database pool manager error for pool named `rootkill`: {e}"
-                        );
+                        log::error!("database pool manager error for pool named `postgres`: {e}");
                         Err(rocket)
                     }
                 }
@@ -166,12 +164,12 @@ impl DustyBPool {
             Some(pool) => match pool.get().await.ok() {
                 Some(conn) => Some(conn),
                 None => {
-                    log::error!("no connections available for `rootkill`");
+                    log::error!("no connections available for `postgres`");
                     None
                 }
             },
             None => {
-                log::error!("missing databse fairing for `rootkill`");
+                log::error!("missing databse fairing for `postgres`");
                 None
             }
         }
@@ -190,7 +188,7 @@ impl<'r> ::rocket::request::FromRequest<'r> for DustyB {
         match request.rocket().state::<DustyBPool>() {
             Some(c) => c.get().await.into_outcome(Status::ServiceUnavailable),
             None => {
-                log::error!("missing databse fairing for `rootkill`");
+                log::error!("missing databse fairing for `postgres`");
                 Outcome::Failure((Status::InternalServerError, ()))
             }
         }

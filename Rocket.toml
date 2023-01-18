@@ -1,0 +1,12 @@
+# ./Rocket.toml
+
+[default]
+name = "etch1000"
+age = 24
+address = "0.0.0.0"
+port = 8080
+
+[default.databases.postgres]
+# url = "postgresql://postgres:dustyshelfpgsql@34.100.139.233:5432/dustyshelf"
+url = "postgresql://rootkill:rootkill@localhost/rootkill"
+

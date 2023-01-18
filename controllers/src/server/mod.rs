@@ -3,7 +3,7 @@ pub mod config;
 pub mod ds_errors;
 pub mod launch_failures;
 
-use crate::{dusty_shelf, dusty_b};
+use crate::{dusty_b, dusty_shelf};
 use rocket::time::Duration;
 use rocket::{figment::Figment, shield, Build, Ignite, Rocket};
 use rocket_okapi::{
@@ -14,7 +14,7 @@ use rocket_okapi::{
 };
 use yansi::Paint;
 
-pub fn create_dusty_service(_migration_url: &str, config: Figment) -> Rocket<Build> {
+pub fn create_dusty_service(_migration_url: String, config: Figment) -> Rocket<Build> {
     use catchers::*;
 
     let shield = shield::Shield::default()
@@ -33,7 +33,7 @@ pub fn create_dusty_service(_migration_url: &str, config: Figment) -> Rocket<Bui
         .register("/", rocket::catchers![not_found, unauthorized])
         .manage(dtos::ConfigDto {
             name: String::from("etch1000"),
-            age: 25
+            age: 25,
         });
 
     let openapi_settings = rocket_okapi::settings::OpenApiSettings::default();
@@ -54,7 +54,7 @@ async fn api_home() -> rocket::response::Redirect {
     rocket::response::Redirect::to(rocket::uri!("/v1"))
 }
 
-pub fn start_dusty_server(db_migration_url: &str, config: Figment) {
+pub fn start_dusty_server(db_migration_url: String, config: Figment) {
     log::info!("Starting Dusty Server");
 
     if !config
@@ -66,9 +66,9 @@ pub fn start_dusty_server(db_migration_url: &str, config: Figment) {
         Paint::disable();
     }
 
-    let launch_rocket_blackbox = rocket::execute(launch_rocket(db_migration_url, config));
+    let launch_rocket_blackbox = rocket::execute(launch_rocket(db_migration_url.clone(), config));
 
-    println!("{:#?}", launch_rocket_blackbox);
+    println!("{launch_rocket_blackbox:#?}");
 
     match launch_rocket_blackbox {
         Ok(_service) => log::info!("Rocket shut down gracefully"),
@@ -77,10 +77,10 @@ pub fn start_dusty_server(db_migration_url: &str, config: Figment) {
 }
 
 async fn launch_rocket(
-    db_migration_url: &str,
+    db_migration_url: String,
     config: Figment,
 ) -> Result<Rocket<Ignite>, rocket::Error> {
-    create_dusty_service(db_migration_url, config)
+    create_dusty_service(db_migration_url.clone(), config)
         .launch()
         .await
 }

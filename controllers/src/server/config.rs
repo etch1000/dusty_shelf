@@ -8,7 +8,10 @@ use serde_json::Map;
 use std::{net::IpAddr, str::FromStr};
 
 pub fn get_config() -> Figment {
+    dotenv::dotenv().ok();
+
     let url = std::env::var("DATABASE_URL").expect("`DATABASE_URL` mut be set");
+    println!("{url:?}");
 
     let mut database_config = Map::new();
 
@@ -22,7 +25,7 @@ pub fn get_config() -> Figment {
         database_config.insert("pool_size".to_owned(), Value::from(32i32));
     }
 
-    databases.insert("rootkill".to_owned(), Value::from(database_config));
+    databases.insert("postgres".to_owned(), Value::from(database_config));
 
     let address =
         IpAddr::from_str(&std::env::var("HOST_ADDRESS").unwrap_or_else(|_| "0.0.0.0".to_owned()))

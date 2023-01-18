@@ -19,26 +19,6 @@ pub fn get_index_route_and_doc(settings: &OpenApiSettings) -> (Vec<Route>, OpenA
     ]
 }
 
-// pub fn get_config_route_and_doc(settings: &OpenApiSettings) -> (Vec<Route>, OpenApi) {
-//     openapi_get_routes_spec![settings: get_config]
-// }
-
-// pub fn get_random_book_route_and_doc(settings: &OpenApiSettings) -> (Vec<Route>, OpenApi) {
-//     openapi_get_routes_spec![settings: get_random_book]
-// }
-
-// pub fn get_by_id_route_and_doc(settings: &OpenApiSettings) -> (Vec<Route>, OpenApi) {
-//     openapi_get_routes_spec![settings: get_by_id]
-// }
-
-// pub fn get_all_books_route_and_doc(settings: &OpenApiSettings) -> (Vec<Route>, OpenApi) {
-//     openapi_get_routes_spec![settings: get_all_books]
-// }
-
-// pub fn get_all_books_route_and_doc(settings: &OpenApiSettings) -> (Vec<Route>, OpenApi) {
-//     openapi_get_routes_spec![settings: get_all_books]
-// }
-
 #[openapi(tag = "Home")]
 #[get("/")]
 fn index(_ds_user: DSUser) -> &'static str {

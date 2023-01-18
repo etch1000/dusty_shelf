@@ -1,3 +1,4 @@
+pub mod dusty_b;
 use diesel::Connection;
 use diesel_migrations::embed_migrations;
 use rocket_okapi::{
@@ -6,12 +7,10 @@ use rocket_okapi::{
 };
 
 // #![cfg(feature = "mock-database")]
-#[cfg(not(feature = "mock-database"))]
-#[rocket_sync_db_pools::database("rootkill")]
-#[cfg(not(feature = "mock-database"))]
+// #[cfg(not(feature = "mock-database"))]
+#[rocket_sync_db_pools::database("postgres")]
+// #[cfg(not(feature = "mock-database"))]
 pub struct DustyShelfDB(diesel::PgConnection);
-
-mod dusty_b;
 
 #[cfg(feature = "mock-database")]
 pub use dusty_b::DustyB;
@@ -28,7 +27,7 @@ impl<'r> OpenApiFromRequest<'r> for DustyShelfDB {
 
 #[cfg(test)]
 pub fn get_db_connection() -> diesel::PgConnection {
-    #[cfg(debug_assertions)]
+    // #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
